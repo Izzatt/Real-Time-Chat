@@ -1,107 +1,96 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import io from 'socket.io-client';
-import '../styles.css';
+import '../styles.css'; // Подключаем CSS файл
 
-function ChatPage() {
-    const { chatId } = useParams(); // Get the chat ID from the URL
-    const [messages, setMessages] = useState([]);
-    const [newMessage, setNewMessage] = useState('');
-    const [socket, setSocket] = useState(null);
-
-    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-    const userId = localStorage.getItem('user_id'); // Get the current user ID
+function ChatsPage() {
+    const [chats, setChats] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [recipientId, setRecipientId] = useState('');
+    const navigate = useNavigate();
+    const userId = localStorage.getItem('user_id');
 
     useEffect(() => {
-        // Initialize WebSocket connection
-        const socketInstance = io(API_BASE_URL);
-        setSocket(socketInstance);
-
-        // Join the specific chat room
-        socketInstance.emit('join', { chat_id: chatId });
-
-        // Listen for incoming messages
-        socketInstance.on('message', (message) => {
-            setMessages((prevMessages) => [...prevMessages, message]);
-        });
-
-        return () => {
-            socketInstance.disconnect();
-        };
-    }, [API_BASE_URL, chatId]);
-
-    useEffect(() => {
-        // Fetch chat history on component mount
-        const fetchMessages = async () => {
+        const fetchChats = async () => {
             try {
-                const response = await axios.get(`http://backend:5000/api/chats/${chatId}`, {
+                const response = await axios.get('http://localhost:5000/api/chats', {
                     params: { user_id: userId },
                 });
-                setMessages(response.data);
+                setChats(response.data);
             } catch (error) {
-                console.error('Error fetching chat messages:', error.response || error);
+                console.error('Error fetching chats:', error);
             }
         };
 
-        fetchMessages();
-    }, [API_BASE_URL, chatId, userId]);
-
-    const handleSendMessage = async (e) => {
-        e.preventDefault();
-
-        if (!newMessage.trim()) return;
-
-        const messageData = {
-            chat_id: chatId,
-            sender_id: userId,
-            message: newMessage,
+        const fetchUsers = async () => {
+            try {
+                const response = await axios.get('http://localhost:5000/api/users');
+                setUsers(response.data.filter((user) => user.id !== userId));
+            } catch (error) {
+                console.error('Error fetching users:', error);
+            }
         };
 
-        try {
-            // Send the message via API
-            await axios.post(`${API_BASE_URL}/api/chats/${chatId}/message`, messageData);
+        fetchChats();
+        fetchUsers();
+    }, [userId]);
 
-            // Emit the message to the WebSocket
-            socket.emit('message', messageData);
-
-            // Clear the input field
-            setNewMessage('');
-        } catch (error) {
-            console.error('Error sending message:', error.response || error);
+    const startNewChat = async () => {
+        if (recipientId) {
+            try {
+                const response = await axios.post('http://localhost:5000/api/chats', {
+                    user_id: userId,
+                    recipient_id: recipientId,
+                });
+                if (response.data) {
+                    alert('Chat created!');
+                    setChats([...chats, response.data]);
+                }
+            } catch (error) {
+                console.error('Error creating chat:', error);
+            }
+        } else {
+            alert('Please select a user to start a chat.');
         }
     };
 
     return (
-        <div className="chat-page">
-            <div className="chat-header">
-                <h2>Chat</h2>
+        <div className="chats-container">
+            <h1 className="chats-header">Your Chats</h1>
+            <div className="chat-form">
+                <select
+                    id="user-select"
+                    value={recipientId}
+                    onChange={(e) => setRecipientId(e.target.value)}
+                >
+                    <option value="">Select a user</option>
+                    {users.map((user) => (
+                        <option key={user.id} value={user.id}>
+                            {user.username}
+                        </option>
+                    ))}
+                </select>
+                <button onClick={startNewChat}>Start Chat</button>
             </div>
-            <div className="chat-messages">
-                {messages.map((msg, index) => (
-                    <div
-                        key={index}
-                        className={`message ${msg.sender_id === userId ? 'sent' : 'received'}`}
+            <ul className="chat-list">
+                {chats.map((chat) => (
+                    <li
+                        key={chat.chat_id}
+                        className="chat-item"
+                        onClick={() => navigate(`/chat/${chat.chat_id}`)}
                     >
-                        <span className="message-sender">
-                            {msg.sender_username || 'Unknown'}
-                        </span>
-                        <p className="message-content">{msg.content}</p>
-                    </div>
+                        <p>
+                            Chat with{' '}
+                            {chat.participants
+                                .filter((participant) => participant.id !== userId)
+                                .map((participant) => participant.username)
+                                .join(', ')}
+                        </p>
+                    </li>
                 ))}
-            </div>
-            <form className="chat-input" onSubmit={handleSendMessage}>
-                <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    required
-                />
-                <button type="submit">Send</button>
-            </form>
+            </ul>
         </div>
     );
 }
 
-export default ChatPage;
+export default ChatsPage;

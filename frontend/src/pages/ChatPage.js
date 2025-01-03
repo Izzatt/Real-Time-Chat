@@ -1,105 +1,113 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
 import io from 'socket.io-client';
+import axios from 'axios';
 import '../styles.css';
 
+const socket = io('http://localhost:5000');
+
 function ChatPage() {
-    const { chatId } = useParams(); // Get the chat ID from the URL
-    const [messages, setMessages] = useState([]);
-    const [newMessage, setNewMessage] = useState('');
-    const [socket, setSocket] = useState(null);
+    const { chatId } = useParams(); 
+    const [messages, setMessages] = useState([]); 
+    const [message, setMessage] = useState('');
+    const [usernames, setUsernames] = useState({}); 
+    const userId = localStorage.getItem('user_id'); 
+    const messagesEndRef = useRef(null); 
 
-    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-    const userId = localStorage.getItem('user_id'); // Get the current user ID
 
-    useEffect(() => {
-        // Initialize WebSocket connection
-        const socketInstance = io(API_BASE_URL);
-        setSocket(socketInstance);
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
 
-        // Join the specific chat room
-        socketInstance.emit('join', { chat_id: chatId });
-
-        // Listen for incoming messages
-        socketInstance.on('message', (message) => {
-            setMessages((prevMessages) => [...prevMessages, message]);
-        });
-
-        return () => {
-            socketInstance.disconnect();
-        };
-    }, [API_BASE_URL, chatId]);
 
     useEffect(() => {
-        // Fetch chat history on component mount
-        const fetchMessages = async () => {
+        const fetchChatData = async () => {
             try {
-                const response = await axios.get(`${API_BASE_URL}/api/chats/${chatId}`, {
-                    params: { user_id: userId },
-                });
-                setMessages(response.data);
+
+                const messagesResponse = await axios.get(`http://localhost:5000/api/chats/${chatId}`);
+                setMessages(messagesResponse.data);
+
+
+                const participantsResponse = await axios.get(`http://localhost:5000/api/chats/${chatId}/participants`);
+                const usernamesMap = participantsResponse.data.reduce((acc, user) => {
+                    acc[user.id] = user.username;
+                    return acc;
+                }, {});
+                setUsernames(usernamesMap);
             } catch (error) {
-                console.error('Error fetching chat messages:', error.response || error);
+                console.error('Error fetching chat data:', error.response || error);
             }
         };
 
-        fetchMessages();
-    }, [API_BASE_URL, chatId, userId]);
+        fetchChatData();
+    }, [chatId]);
 
-    const handleSendMessage = async (e) => {
-        e.preventDefault();
 
-        if (!newMessage.trim()) return;
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
-        const messageData = {
-            chat_id: chatId,
-            sender_id: userId,
-            message: newMessage,
+    useEffect(() => {
+        socket.emit('join', { chat_id: chatId });
+
+        socket.on('message', (data) => {
+            if (data.chat_id === chatId) {
+                setMessages((prev) => [...prev, data]); 
+            }
+        });
+
+        return () => {
+            socket.off('message');
+            socket.emit('leave', { chat_id: chatId });
         };
+    }, [chatId]);
 
-        try {
-            // Send the message via API
-            await axios.post(`${API_BASE_URL}/api/chats/${chatId}/message`, messageData);
+    const sendMessage = async () => {
+        if (message.trim()) {
+            const newMessage = {
+                chat_id: chatId,
+                sender_id: userId,
+                message: message.trim(),
+            };
 
-            // Emit the message to the WebSocket
-            socket.emit('message', messageData);
-
-            // Clear the input field
-            setNewMessage('');
-        } catch (error) {
-            console.error('Error sending message:', error.response || error);
+            try {
+                socket.emit('message', newMessage); 
+                await axios.post(`http://localhost:5000/api/chats/${chatId}/message`, newMessage); 
+                setMessage(''); 
+            } catch (error) {
+                console.error('Error sending message:', error.response || error);
+            }
+        } else {
+            alert('Message cannot be empty!');
         }
     };
 
     return (
-        <div className="chat-page">
-            <div className="chat-header">
-                <h2>Chat</h2>
-            </div>
-            <div className="chat-messages">
+        <div className="chat-container">
+            <h1>Chat Room</h1>
+            <div className="messages-container">
                 {messages.map((msg, index) => (
                     <div
                         key={index}
-                        className={`message ${msg.sender_id === userId ? 'sent' : 'received'}`}
+                        className={`message ${msg.sender_id === userId ? 'message-right' : 'message-left'}`}
                     >
-                        <span className="message-sender">
-                            {msg.sender_username || 'Unknown'}
-                        </span>
-                        <p className="message-content">{msg.content}</p>
+                        <p className="message-username">
+                            {msg.sender_id === userId ? 'You' : usernames[msg.sender_id] || 'Unknown'}:
+                        </p>
+                        <p className="message-content">{msg.message || msg.content}</p>
                     </div>
                 ))}
+                <div ref={messagesEndRef} /> {}
             </div>
-            <form className="chat-input" onSubmit={handleSendMessage}>
+            <div className="input-container">
                 <input
                     type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
                     placeholder="Type a message..."
-                    required
                 />
-                <button type="submit">Send</button>
-            </form>
+                <button onClick={sendMessage}>Send</button>
+            </div>
         </div>
     );
 }

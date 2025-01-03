@@ -3,7 +3,7 @@ import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
 
 function AuthPage({ onLoginSuccess }) {
-    const [isLogin, setIsLogin] = useState(true); // Toggle between login and register
+    const [isLogin, setIsLogin] = useState(true); 
 
     const navigateToRegister = () => setIsLogin(false);
     const navigateToLogin = () => setIsLogin(true);

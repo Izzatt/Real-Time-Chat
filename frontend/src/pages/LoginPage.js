@@ -6,26 +6,22 @@ import '../styles.css';
 function LoginPage({ navigateToRegister }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const navigate = useNavigate();
-
+    const navigate = useNavigate(); 
 
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            // Send login request to the backend
             const response = await axios.post('http://localhost:5000/api/users/login', {
                 username,
                 password,
             });
 
-            // Handle successful login
             alert(response.data.message);
             localStorage.setItem('user_id', response.data.user_id);
 
-            // Navigate to the chats page
+
             navigate('/chats');
         } catch (error) {
-            // Handle errors
             console.error('Login error:', error.response || error);
             alert(error.response?.data?.error || 'Login failed');
         }

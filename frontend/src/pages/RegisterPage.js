@@ -8,8 +8,6 @@ function RegisterPage({ navigateToLogin }) {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
-    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-
     const handleRegister = async (e) => {
         e.preventDefault();
 
@@ -19,13 +17,13 @@ function RegisterPage({ navigateToLogin }) {
         }
 
         try {
-            const response = await axios.post('http://backend:5000/api/users/register', {
+            const response = await axios.post('http://localhost:5000/api/users/register', {
                 username,
                 password,
             });
 
             alert(response.data.message || 'Registration successful!');
-            navigateToLogin(); // Navigate to login after successful registration
+            navigateToLogin(); 
         } catch (error) {
             console.error('Registration error:', error.response || error);
             alert(error.response?.data?.error || 'Registration failed');
