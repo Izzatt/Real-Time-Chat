@@ -34,8 +34,8 @@ Make sure you have the following installed:
 2. Ensure Docker and Docker Compose are installed and running.
 
 3. Build and start the containers:
-    ```bash
-    docker-compose up --build
+```bash
+docker-compose up --build
 ```
 
 4. Open your browser and navigate to:
